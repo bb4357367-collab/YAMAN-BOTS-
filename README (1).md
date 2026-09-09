@@ -36,6 +36,10 @@ In the Developer Portal, enable the **Message Content Intent** under **Bot → P
 
 ## Deploy on Render
 
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/bb4357367-collab/YAMAN-BOTS-)
+
+GitHub stores the project files; it does not run the Discord bot or Node.js dashboard. Use the button above to create the public web service on Render. Render will give you a web URL such as `https://your-service.onrender.com`.
+
 Create a **Web Service** from this repository. Set **Root Directory** to blank (the repository root), **Build Command** to `npm install`, and **Start Command** to `npm start`. Do not use `node src/index.js` as the Render start command. Do not set the root directory to `src`; `src` is a folder containing the implementation, not the project root. Render will use Node `22.x` from `package.json`, which is required for the native Opus encoder. Add all five `DISCORD_TOKEN_1` through `DISCORD_TOKEN_5` and `WEB_ADMIN_KEY` as Render environment variables. Client IDs are not required. Add `GUILD_ID` only when it is the real numeric ID of your Discord server; otherwise leave it empty.
 
 The dashboard is available at the deployed service URL. Open it and log in with the exact `WEB_ADMIN_KEY` from Render. The page shows the status of all five bot slots before enabling controls. If a bot says `missing-token`, add its matching `DISCORD_TOKEN_1` through `DISCORD_TOKEN_5` environment variable in Render. Paste a Discord voice channel ID and click **Join All Bots**. Every online bot will join that channel. Upload an audio file, then click **Play in Discord** beside it to send that audio to every bot in the channel. The browser player previews audio locally; **Stop All** stops Discord playback and **Disconnect All** ends every active voice session. The bot accounts must already be invited to the channel's server and have `Connect`, `Speak`, and `View Channel` permissions.
