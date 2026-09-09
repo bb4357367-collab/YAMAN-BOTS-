@@ -448,6 +448,13 @@ app.get('/api/audio', requireAdmin, (request, response) => {
   const files = fs.readdirSync(audioDir).filter((file) => /\.(mp3|wav|ogg|m4a|webm)$/i.test(file));
   response.json(files.map((file) => ({ name: file, url: `/audio/${encodeURIComponent(file)}` })));
 });
+app.delete('/api/audio', requireAdmin, (request, response) => {
+  sessions.forEach((session) => stopSessionAudio(session));
+  const files = fs.readdirSync(audioDir).filter((file) => /\.(mp3|wav|ogg|m4a|webm)$/i.test(file));
+  files.forEach((file) => fs.unlinkSync(path.join(audioDir, file)));
+  addLog('info', `Audio library cleared: ${files.length} file(s) removed.`);
+  response.json({ removed: files.length });
+});
 app.use('/audio', express.static(audioDir));
 app.get('/api/discord-context', requireAdmin, (request, response) => {
   const controller = bots.find((bot) => bot.status === 'online');
