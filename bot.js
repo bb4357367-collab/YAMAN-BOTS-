@@ -160,8 +160,19 @@ async function connectToChannel(bot, guild, channel, attempt = 0) {
 
   const key = `${bot.number}:${guild.id}`;
   const existing = sessions.get(key);
-  if (existing && existing.channelId === channel.id && existing.connection.state.status !== VoiceConnectionStatus.Destroyed) return existing;
-  if (existing) safelyDestroy(existing.connection);
+  if (existing && existing.channelId === channel.id) {
+    if (existing.connection.state.status === VoiceConnectionStatus.Ready) return existing;
+    if (existing.connection.state.status !== VoiceConnectionStatus.Destroyed
+      && existing.connection.state.status !== VoiceConnectionStatus.Disconnected) {
+      await entersState(existing.connection, VoiceConnectionStatus.Ready, 30_000);
+      return existing;
+    }
+  }
+  if (existing) {
+    stopSessionAudio(existing);
+    safelyDestroy(existing.connection);
+    sessions.delete(key);
+  }
 
   const connection = joinVoiceChannel({
     channelId: channel.id,
