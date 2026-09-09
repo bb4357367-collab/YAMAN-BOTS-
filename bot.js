@@ -305,7 +305,14 @@ async function runWebControl(action, guildIdToControl, channelIdToControl, filen
       const requestedChannel = channelIdToControl
         ? await bot.client.channels.fetch(channelIdToControl).catch(() => null)
         : null;
-      const guild = (requestedChannel?.guild) || bot.client.guilds.cache.get(guildIdToControl);
+      const activeSession = action === 'play' && !channelIdToControl
+        ? [...sessions.entries()].find(([key, session]) => key.startsWith(`${bot.number}:`)
+          && session.connection.state.status === VoiceConnectionStatus.Ready)
+        : null;
+      const activeGuildId = activeSession?.[0].split(':')[1];
+      const guild = (requestedChannel?.guild)
+        || bot.client.guilds.cache.get(guildIdToControl)
+        || bot.client.guilds.cache.get(activeGuildId);
       if (action === 'disconnect' && !guildIdToControl && !requestedChannel) {
         const guildIds = new Set([
           ...[...sessions.keys()]
@@ -336,7 +343,10 @@ async function runWebControl(action, guildIdToControl, channelIdToControl, filen
         stopSessionAudio(session);
         return { bot: bot.number, completed: Boolean(session) };
       }
-      const channel = requestedChannel || guild.channels.cache.get(channelIdToControl);
+      const channel = requestedChannel
+        || (activeSession && guild.channels.cache.get(activeSession[1].channelId))
+        || guild.channels.cache.get(channelIdToControl);
+      if (!channel) throw new Error('Choose a voice channel or join a voice channel first.');
       desiredChannels.set(desiredKey(bot.number, guild.id), { channelId: channel.id });
       const connected = await connectToChannel(bot, guild, channel);
       if (action === 'play') await playInDiscord(bot, connected, filename);
@@ -484,7 +494,7 @@ app.post('/api/control', requireAdmin, async (request, response) => {
   if (!['join', 'stop', 'disconnect', 'play'].includes(action)) {
     return response.status(400).json({ error: 'Choose a valid server and action.' });
   }
-  if (['join', 'play'].includes(action) && !/^\d{17,20}$/.test(targetChannelId || '')) {
+  if (action === 'join' && !/^\d{17,20}$/.test(targetChannelId || '')) {
     return response.status(400).json({ error: 'Choose a voice channel.' });
   }
   if (action === 'play' && !getAudioPath(filename)) return response.status(400).json({ error: 'Choose a valid uploaded audio file.' });
