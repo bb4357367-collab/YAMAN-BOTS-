@@ -90,7 +90,8 @@ async function playInDiscord(bot, session, filename) {
   if (!audioPath) throw new Error(`Audio file ${filename} was not found.`);
   if (session.audioProcess) session.audioProcess.kill();
   const ffmpeg = spawn(ffmpegPath, [
-    '-hide_banner', '-loglevel', 'error', '-i', audioPath,
+    '-hide_banner', '-loglevel', 'error', '-re', '-i', audioPath,
+    '-map', '0:a:0', '-vn', '-acodec', 'pcm_s16le',
     '-f', 's16le', '-ar', '48000', '-ac', '2', 'pipe:1',
   ]);
   session.audioProcess = ffmpeg;
@@ -107,6 +108,13 @@ async function playInDiscord(bot, session, filename) {
   ffmpeg.on('close', () => {
     if (session.audioProcess === ffmpeg) session.audioProcess = null;
   });
+  ffmpeg.stdout.on('error', (error) => {
+    addLog('error', `Bot ${bot.number} audio stream failed: ${error.message}`);
+  });
+  const playerError = (error) => {
+    addLog('error', `Bot ${bot.number} audio player failed: ${error.message}`);
+  };
+  session.player.once('error', playerError);
   session.player.play(createAudioResource(ffmpeg.stdout, { inputType: StreamType.Raw }));
   let onPlayerError;
   const started = new Promise((resolve, reject) => {
