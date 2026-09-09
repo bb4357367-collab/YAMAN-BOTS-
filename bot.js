@@ -174,12 +174,21 @@ async function connectToChannel(bot, guild, channel, attempt = 0) {
   });
   const player = createAudioPlayer();
   connection.subscribe(player);
-  connection.on('error', (error) => console.error(`Bot ${bot.number} voice error:`, error));
+  connection.on('error', (error) => addLog('error', `Bot ${bot.number} voice error: ${error.message}`));
   connection.on('debug', (message) => addLog('info', `Bot ${bot.number} voice debug: ${message}`));
   const session = { channelId: channel.id, connection, player };
   sessions.set(key, session);
   connection.on('stateChange', (oldState, newState) => {
     addLog('info', `Bot ${bot.number} voice state: ${oldState.status} -> ${newState.status}.`);
+    if (newState.status === VoiceConnectionStatus.Disconnected && sessions.get(key) === session) {
+      setTimeout(() => {
+        if (sessions.get(key) !== session || session.connection.state.status !== VoiceConnectionStatus.Disconnected) return;
+        sessions.delete(key);
+        safelyDestroy(session.connection);
+        const desired = desiredChannels.get(key);
+        if (desired) scheduleKeepAlive(bot, guild, desired.channelId);
+      }, 2_000);
+    }
     if (newState.status === VoiceConnectionStatus.Destroyed && sessions.get(key) === session) {
       sessions.delete(key);
       addLog('info', `Bot ${bot.number} voice session ended.`);
