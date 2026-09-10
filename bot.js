@@ -85,15 +85,20 @@ function getAudioPath(filename) {
   return fs.existsSync(filePath) ? filePath : null;
 }
 
-async function playInDiscord(bot, session, filename) {
+async function playInDiscord(bot, session, filename, loop = false) {
   const audioPath = getAudioPath(filename);
   if (!audioPath) throw new Error(`Audio file ${filename} was not found.`);
   if (session.audioProcess) session.audioProcess.kill();
-  const ffmpeg = spawn(ffmpegPath, [
-    '-hide_banner', '-loglevel', 'error', '-re', '-i', audioPath,
+  const ffmpegArgs = [
+    '-hide_banner', '-loglevel', 'error', '-re',
+  ];
+  if (loop) ffmpegArgs.push('-stream_loop', '-1');
+  ffmpegArgs.push(
+    '-i', audioPath,
     '-map', '0:a:0', '-vn', '-acodec', 'pcm_s16le',
     '-f', 's16le', '-ar', '48000', '-ac', '2', 'pipe:1',
-  ]);
+  );
+  const ffmpeg = spawn(ffmpegPath, ffmpegArgs);
   session.audioProcess = ffmpeg;
   let ffmpegError = '';
   ffmpeg.stderr.on('data', (data) => {
@@ -125,7 +130,7 @@ async function playInDiscord(bot, session, filename) {
   });
   try {
     await Promise.race([started, new Promise((_, reject) => setTimeout(() => reject(new Error(`Audio did not start${ffmpegError ? `: ${ffmpegError.trim()}` : '.'}`)), 15_000))]);
-    addLog('info', `Bot ${bot.number} started playing ${filename}.`);
+    addLog('info', `Bot ${bot.number} started playing ${filename}${loop ? ' in loop mode' : ''}.`);
   } finally {
     session.player.removeListener('error', onPlayerError);
   }
@@ -290,7 +295,7 @@ function safelyDestroy(connection) {
   }
 }
 
-async function runWebControl(action, guildIdToControl, channelIdToControl, filename) {
+async function runWebControl(action, guildIdToControl, channelIdToControl, filename, loop = false) {
   const activeBots = bots.filter((bot) => bot.status === 'online');
   if (!activeBots.length) {
     const details = bots.map((bot) => `Bot ${bot.number}: ${bot.statusMessage || bot.status}`).join(' | ');
@@ -349,7 +354,7 @@ async function runWebControl(action, guildIdToControl, channelIdToControl, filen
       if (!channel) throw new Error('Choose a voice channel or join a voice channel first.');
       desiredChannels.set(desiredKey(bot.number, guild.id), { channelId: channel.id });
       const connected = await connectToChannel(bot, guild, channel);
-      if (action === 'play') await playInDiscord(bot, connected, filename);
+      if (action === 'play') await playInDiscord(bot, connected, filename, loop);
       return { bot: bot.number, completed: true, state: sessions.get(`${bot.number}:${guild.id}`)?.connection.state.status };
     } catch (error) {
       return { bot: bot.number, completed: false, error: error.message };
@@ -490,7 +495,7 @@ app.get('/api/discord-context', requireAdmin, (request, response) => {
   response.json({ guilds });
 });
 app.post('/api/control', requireAdmin, async (request, response) => {
-  const { action, guildId: targetGuildId, channelId: targetChannelId, filename } = request.body || {};
+  const { action, guildId: targetGuildId, channelId: targetChannelId, filename, loop } = request.body || {};
   if (!['join', 'stop', 'disconnect', 'play'].includes(action)) {
     return response.status(400).json({ error: 'Choose a valid server and action.' });
   }
@@ -499,7 +504,7 @@ app.post('/api/control', requireAdmin, async (request, response) => {
   }
   if (action === 'play' && !getAudioPath(filename)) return response.status(400).json({ error: 'Choose a valid uploaded audio file.' });
   try {
-    response.json(await runWebControl(action, targetGuildId, targetChannelId, filename));
+    response.json(await runWebControl(action, targetGuildId, targetChannelId, filename, loop === true));
   } catch (error) {
     response.status(400).json({ error: error.message });
   }
