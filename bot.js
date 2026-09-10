@@ -504,7 +504,7 @@ app.post('/api/control', requireAdmin, async (request, response) => {
     return response.status(400).json({ error: 'Choose a voice channel.' });
   }
   if (action === 'play' && !getAudioPath(filename)) return response.status(400).json({ error: 'Choose a valid uploaded audio file.' });
-  const safeVolume = Number.isFinite(Number(volume)) ? Math.max(0, Math.min(100, Number(volume))) : 100;
+  const safeVolume = Number.isFinite(Number(volume)) ? Math.max(0, Math.min(200, Number(volume))) : 100;
   try {
     response.json(await runWebControl(action, targetGuildId, targetChannelId, filename, loop === true, safeVolume));
   } catch (error) {
